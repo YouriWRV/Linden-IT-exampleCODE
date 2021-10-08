@@ -1,0 +1,110 @@
+#open file with tweets
+file = "Name of your file"
+all_languages = pd.read_csv(file, sep=',')
+
+#Open the sentiment lexicon as a dataframe
+lexicon = pd.read_csv ('sentiment_lexicon.csv', sep=';')
+
+#Make a set of words from the lexicon
+word_list = set(lexicon['word'])
+
+#filter the tweets on english only
+only_english = all_languages.loc[all_languages['language'] == 'en']
+only_english = only_english.reset_index(drop=True)
+
+lemmatizer = WordNetLemmatizer()
+cachedStopWords = stopwords.words("english")
+
+for indx, row in only_english.iterrows():
+    twt = only_english.iloc[indx]['content']
+    twt = ' '.join(word for word in twt.split(' ') if not word.startswith('http')) #Remove URL's
+    twt = ' '.join(word for word in twt.split(' ') if not word.startswith('@'))    #Remove @ with the user ID
+    twt = twt.replace('RT', '')                                                    #Remove the RT statement
+    
+    #POS tag the sentence
+    tex  = word_tokenize(twt)
+    tags = nltk.pos_tag(tex)
+    newlist = []
+    
+    for word, tag in tags:
+        
+        #If the word is a stop word do nothing
+        if not word in cachedStopWords:
+            
+            #If the word is not in the lexicon we check if the word's stem IS in the lexicon, if so we replace the word with it's stem
+            if not word in word_list:
+
+                #Take the stem if the word is verb
+                if tag in ('VBD','VBG','VBN','VBP','VBZ'):
+                    vstem = lemmatizer.lemmatize(word,'v')
+                    newlist.append(vstem)
+                
+                #Take the stem if the word is a nn
+                elif tag in ('NNS', 'NNPS'):
+                    nstem = lemmatizer.lemmatize(word, 'n')
+                    newlist.append(nstem)
+                    
+            #if the word is in the lexicon then we don't need to alter the word form
+            else:
+                    newlist.append(word)
+    
+    #Make a string from the list of words
+    twt = " ".join(newlist)
+    
+    twt = twt.translate(str.maketrans('', '', string.punctuation))        #Remove puntuations
+    only_english.loc[only_english.index[indx], 'content']  = twt.lower()  #lower case everything
+    
+#Add new columns for every emotions to be detected
+number_of_rowsZero = [0]*only_english.shape[0]
+only_english['anger']        = number_of_rowsZero
+only_english['anticipation'] = number_of_rowsZero
+only_english['disgust']      = number_of_rowsZero
+only_english['fear']         = number_of_rowsZero
+only_english['joy']          = number_of_rowsZero
+only_english['sadness']      = number_of_rowsZero
+only_english['surprise']     = number_of_rowsZero
+only_english['trust']        = number_of_rowsZero
+
+#Loop over the tweet dataframe
+#Get the content of the tweet and put it into a list of words
+for index, row in only_english.iterrows():
+    twt = only_english.iloc[index]['content']
+    twt = twt.split()
+    
+    #Check if the word of the tweet can be found somewhere in the sentiment lexicon
+    for word in twt:
+        #When the word is not in the list it does not have any sentiment and thus nothing to do with it
+        if word in word_list:
+            word_index = lexicon[lexicon['word']==word].index.values.astype(int)[0]
+            emotions   = lexicon.iloc[word_index]['emotion']
+            score      = lexicon.iloc[word_index]['emotion-intensity-score']
+
+            #Check to which emotion the word corresponds and add up the score of that word to the already 
+            #excisting score of the tweet
+            if emotions   == 'anger':
+                score_so_far = only_english.iloc[index]['anger']
+                only_english.loc[only_english.index[index], 'anger']  = score_so_far + score
+            elif emotions == 'anticipation':
+                score_so_far = only_english.iloc[index]['anticipation']
+                only_english.loc[only_english.index[index], 'anticipation']  = score_so_far + score
+            elif emotions == 'disgust':
+                score_so_far = only_english.iloc[index]['disgust']
+                only_english.loc[only_english.index[index], 'disgust']  = score_so_far + score
+            elif emotions == 'fear':
+                score_so_far = only_english.iloc[index]['fear']
+                only_english.loc[only_english.index[index], 'fear']  = score_so_far + score
+            elif emotions == 'joy':
+                score_so_far = only_english.iloc[index]['joy']
+                only_english.loc[only_english.index[index], 'joy']  = score_so_far + score
+            elif emotions == 'sadness':
+                score_so_far = only_english.iloc[index]['sadness']
+                only_english.loc[only_english.index[index], 'sadness']  = score_so_far + score
+            elif emotions == 'surprise':
+                score_so_far = only_english.iloc[index]['surprise']
+                only_english.loc[only_english.index[index], 'surprise']  = score_so_far + score
+            else:
+                score_so_far = only_english.iloc[index]['trust']
+                only_english.loc[only_english.index[index], 'trust']  = score_so_far + score
+
+#Save the dataframe with sentiment score in a new file
+only_english.to_csv('name of your file here')
