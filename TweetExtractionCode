@@ -1,0 +1,56 @@
+""""
+If not yet done you first need to intall tweepy with the line below:
+    
+    pip install tweepy
+"""
+
+import pandas as pd
+import tweepy as tw
+from langdetect import detect
+
+
+#variable names you need to set to your own
+datafile = "yourdataset.tsv"
+name_of_file = "her you put the name of how the file you will save will be named"
+
+API_KEY = "<your API key>"
+API_SECRET = "<your API secret key>"
+ACCESS_TOKEN = "<your ACCESS token>"
+ACCESS_TOKEN_SECRET = "<your access token secret>"
+
+#Load in the specific dataset
+all_tweets = pd.read_csv(datafile, sep='\t')
+
+#Upper bound on the amount of tweets
+max_tweets = all_tweets.shape[0]
+
+#auth = tw.AppAuthHandler(API_KEY, API_SECRET)
+auth = tw.OAuthHandler(API_KEY, API_SECRET)
+auth.set_access_token(ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
+api = tw.API(auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True)
+
+#check if there are more than 50000 tweets in the dataset
+#if there is randomize the order of the tweets
+if all_tweets.shape[0] > 50000:
+    all_tweets = all_tweets.sample(frac=1).reset_index(drop=True)
+    max_tweets = 50000
+    
+#get the text of the tweet per id  
+for index in range(max_tweets):
+    tid = all_tweets.iloc[index]['tweet_id']
+    try:
+        tweet    = api.get_status(tid) 
+        tweetxt  = tweet.text
+        language = detect(tweetxt)
+        all_tweets.loc[all_tweets.index[index], 'content']  = tweetxt
+        all_tweets.loc[all_tweets.index[index], 'language'] = language
+    
+    #For if the tweet has been deleted
+    except: 
+        all_tweets.loc[all_tweets.index[index], 'content'] = 'deleted'
+      
+    if (index % 100) == 0:
+        print("{} {}".format(index, "tweets done"))
+        
+#save to a csv file        
+all_tweets.to_csv('name_of_file')
